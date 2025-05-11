@@ -19,7 +19,8 @@ env:
 
 jobs:
   preview:
-    if: github.repository == 'commaai/openpilot'
+    #if: github.repository == 'commaai/openpilot'
+    if: false  # FIXME: FrameReader is broken on CI runners
     name: preview
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -52,7 +53,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           run_id: ${{ steps.get_run_id.outputs.run_id }}
           search_artifacts: true
-          name: report-${{ env.REPORT_NAME }}
+          name: report-1-${{ env.REPORT_NAME }}
           path: ${{ github.workspace }}/pr_ui
 
       - name: Getting master ui
@@ -82,27 +83,38 @@ jobs:
         if: github.event_name == 'pull_request_target'
         id: find_diff
         run: >-
-          sudo apt-get install -y imagemagick
+          sudo apt-get update && sudo apt-get install -y imagemagick
 
-          scenes="homescreen settings_device settings_toggles offroad_alert update_available prime onroad onroad_disengaged onroad_override onroad_sidebar onroad_wide onroad_wide_sidebar onroad_alert_small onroad_alert_mid onroad_alert_full driver_camera body keyboard"
+          scenes=$(find ${{ github.workspace }}/pr_ui/*.png -type f -printf "%f\n" | cut -d '.' -f 1 | grep -v 'pair_device')
           A=($scenes)
 
           DIFF=""
-          TABLE="<details>"
-          TABLE="${TABLE}<summary>All Screenshots</summary>"
+          TABLE="<details><summary>All Screenshots</summary>"
           TABLE="${TABLE}<table>"
 
           for ((i=0; i<${#A[*]}; i=i+1));
           do
+            # Check if the master file exists
+            if [ ! -f "${{ github.workspace }}/master_ui/${A[$i]}.png" ]; then
+              # This is a new file in PR UI that doesn't exist in master
+              DIFF="${DIFF}<details open>"
+              DIFF="${DIFF}<summary>${A[$i]} : \$\${\\color{cyan}\\text{NEW}}\$\$</summary>"
+              DIFF="${DIFF}<table>"
 
-            if ! compare -fuzz 2% -highlight-color DeepSkyBlue1 -lowlight-color Black -compose Src ${{ github.workspace }}/master_ui/${A[$i]}.png ${{ github.workspace }}/pr_ui/${A[$i]}.png ${{ github.workspace }}/pr_ui/${A[$i]}_diff.png; then
+              DIFF="${DIFF}<tr>"
+              DIFF="${DIFF}  <td> <img src=\"https://raw.githubusercontent.com/commaai/ci-artifacts/${{ env.BRANCH_NAME }}/${A[$i]}.png\"> </td>"
+              DIFF="${DIFF}</tr>"
+
+              DIFF="${DIFF}</table>"
+              DIFF="${DIFF}</details>"
+            elif ! compare -fuzz 2% -highlight-color DeepSkyBlue1 -lowlight-color Black -compose Src ${{ github.workspace }}/master_ui/${A[$i]}.png ${{ github.workspace }}/pr_ui/${A[$i]}.png ${{ github.workspace }}/pr_ui/${A[$i]}_diff.png; then
               convert ${{ github.workspace }}/pr_ui/${A[$i]}_diff.png -transparent black mask.png
               composite mask.png ${{ github.workspace }}/master_ui/${A[$i]}.png composite_diff.png
-              convert -delay 20 ${{ github.workspace }}/master_ui/${A[$i]}.png composite_diff.png -loop 0 ${{ github.workspace }}/pr_ui/${A[$i]}_diff.gif
+              convert -delay 100 ${{ github.workspace }}/master_ui/${A[$i]}.png composite_diff.png -loop 0 ${{ github.workspace }}/pr_ui/${A[$i]}_diff.gif
 
               mv ${{ github.workspace }}/master_ui/${A[$i]}.png ${{ github.workspace }}/pr_ui/${A[$i]}_master_ref.png
 
-              DIFF="${DIFF}<details>"
+              DIFF="${DIFF}<details open>"
               DIFF="${DIFF}<summary>${A[$i]} : \$\${\\color{red}\\text{DIFFERENT}}\$\$</summary>"
               DIFF="${DIFF}<table>"
 
@@ -132,8 +144,7 @@ jobs:
             fi
           done
 
-          TABLE="${TABLE}</table>"
-          TABLE="${TABLE}</details>"
+          TABLE="${TABLE}</table></details>"
 
           echo "DIFF=$DIFF$TABLE" >> "$GITHUB_OUTPUT"
 

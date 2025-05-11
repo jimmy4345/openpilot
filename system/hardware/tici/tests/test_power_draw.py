@@ -10,7 +10,6 @@ from cereal.services import SERVICE_LIST
 from opendbc.car.car_helpers import get_demo_car_params
 from openpilot.common.mock import mock_messages
 from openpilot.common.params import Params
-from openpilot.selfdrive.car.card import convert_to_capnp
 from openpilot.system.hardware.tici.power_monitor import get_power
 from openpilot.system.manager.process_config import managed_processes
 from openpilot.system.manager.manager import manager_cleanup
@@ -32,9 +31,9 @@ class Proc:
 
 
 PROCS = [
-  Proc(['camerad'], 2.1, msgs=['roadCameraState', 'wideRoadCameraState', 'driverCameraState']),
+  Proc(['camerad'], 1.75, msgs=['roadCameraState', 'wideRoadCameraState', 'driverCameraState']),
   Proc(['modeld'], 1.12, atol=0.2, msgs=['modelV2']),
-  Proc(['dmonitoringmodeld'], 0.5, msgs=['driverStateV2']),
+  Proc(['dmonitoringmodeld'], 1.4, msgs=['driverStateV2']),
   Proc(['encoderd'], 0.23, msgs=[]),
 ]
 
@@ -43,7 +42,7 @@ PROCS = [
 class TestPowerDraw:
 
   def setup_method(self):
-    Params().put("CarParams", convert_to_capnp(get_demo_car_params()).to_bytes())
+    Params().put("CarParams", get_demo_car_params().to_bytes())
 
     # wait a bit for power save to disable
     time.sleep(5)
@@ -57,10 +56,10 @@ class TestPowerDraw:
   def valid_msg_count(self, proc, msg_counts):
     msgs_received = sum(msg_counts[msg] for msg in proc.msgs)
     msgs_expected = self.get_expected_messages(proc)
-    return np.core.numeric.isclose(msgs_expected, msgs_received, rtol=.02, atol=2)
+    return np.isclose(msgs_expected, msgs_received, rtol=.02, atol=2)
 
   def valid_power_draw(self, proc, used):
-    return np.core.numeric.isclose(used, proc.power, rtol=proc.rtol, atol=proc.atol)
+    return np.isclose(used, proc.power, rtol=proc.rtol, atol=proc.atol)
 
   def tabulate_msg_counts(self, msgs_and_power):
     msg_counts = defaultdict(int)

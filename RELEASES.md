@@ -1,8 +1,30 @@
-Version 0.9.8 (2024-XX-XX)
+Version 0.9.9 (2025-05-15)
 ========================
-* New Tomb Raider driving model
+* New driving model
+  * New training architecture supervised by MLSIM
+* Steering actuator delay is now learned online
+* Tesla Model 3 and Y support thanks to lukasloetkolben!
+* Lexus RC 2023 support thanks to nelsonjchen!
+* Coming soon
+  * New Honda models
+  * Bigger vision model
+
+Version 0.9.8 (2025-02-28)
+========================
+* New driving model
+  * Model now gates applying positive acceleration in Chill mode
+* New driver monitoring model
+  * Reduced false positives related to passengers
+* Image processing pipeline moved to the ISP
+  * More GPU time for bigger driving models
+  * Power draw reduced 0.5W, which means your device runs cooler
 * Added toggle to enable driver monitoring even when openpilot is not engaged
+* Localizer rewritten to remove GPS dependency at runtime
+* Firehose Mode for maximizing your training data uploads
+* Enable openpilot longitudinal control for Ford Q3 vehicles
 * New Toyota TSS2 longitudinal tune
+* Rivian R1S and R1T support thanks to lukasloetkolben!
+* Ford F-150, F-150 Hybrid, Mach-E, and Ranger support
 
 Version 0.9.7 (2024-06-13)
 ========================

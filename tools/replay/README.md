@@ -37,7 +37,7 @@ tools/replay/replay <route-name> --data_dir="/path_to/route"
 # a2a0ccea32023010|2023-07-27--13-01-19--0
 # a2a0ccea32023010|2023-07-27--13-01-19--1
 # You can replay it like this:
-tools/replay/replay "a2a0ccea32023010|2023-07-27--13-01-19" --data-dir="/path_to_routes"
+tools/replay/replay "a2a0ccea32023010|2023-07-27--13-01-19" --data_dir="/path_to_routes"
 ```
 
 ## Send Messages via ZMQ
@@ -58,12 +58,14 @@ Mock openpilot components by publishing logged messages.
 
 Options:
   -h, --help             Displays this help.
-  -a, --allow <allow>    whitelist of services to send
-  -b, --block <block>    blacklist of services to send
+  -a, --allow <allow>    whitelist of services to send (comma-separated)
+  -b, --block <block>    blacklist of services to send (comma-separated)
   -c, --cache <n>        cache <n> segments in memory. default is 5
   -s, --start <seconds>  start from <seconds>
   -x <speed>             playback <speed>. between 0.2 - 3
   --demo                 use a demo route instead of providing your own
+  --auto                 Auto load the route from the best available source (no video):
+                         internal, openpilotci, comma_api, car_segments, testing_closet
   --data_dir <data_dir>  local directory with routes
   --prefix <prefix>      set OPENPILOT_PREFIX
   --dcam                 load driver camera
@@ -81,7 +83,7 @@ Arguments:
                          connect.comma.ai
 ```
 
-## Visualize the Replay in the Openpilot UI
+## Visualize the Replay in the openpilot UI
 To visualize the replay within the openpilot UI, run the following commands:
 
 ```bash

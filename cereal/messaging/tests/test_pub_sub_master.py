@@ -6,6 +6,7 @@ import cereal.messaging as messaging
 from cereal.messaging.tests.test_messaging import events, random_sock, random_socks, \
                                                   random_bytes, random_carstate, assert_carstate, \
                                                   zmq_sleep
+from cereal.services import SERVICE_LIST
 
 
 class TestSubMaster:
@@ -26,7 +27,9 @@ class TestSubMaster:
     sm = messaging.SubMaster(socks)
     assert sm.frame == -1
     assert not any(sm.updated.values())
-    assert not any(sm.alive.values())
+    assert not any(sm.seen.values())
+    on_demand = {s: SERVICE_LIST[s].frequency <= 1e-5 for s in sm.services}
+    assert all(sm.alive[s] == sm.valid[s] == sm.freq_ok[s] == on_demand[s] for s in sm.services)
     assert all(t == 0. for t in sm.recv_time.values())
     assert all(f == 0 for f in sm.recv_frame.values())
     assert all(t == 0 for t in sm.logMonoTime.values())
@@ -63,14 +66,13 @@ class TestSubMaster:
   def test_update_timeout(self):
     sock = random_sock()
     sm = messaging.SubMaster([sock,])
-    for _ in range(5):
-      timeout = random.randrange(1000, 5000)
-      start_time = time.monotonic()
-      sm.update(timeout)
-      t = time.monotonic() - start_time
-      assert t >= timeout/1000.
-      assert t < 5
-      assert not any(sm.updated.values())
+    timeout = random.randrange(1000, 3000)
+    start_time = time.monotonic()
+    sm.update(timeout)
+    t = time.monotonic() - start_time
+    assert t >= timeout/1000.
+    assert t < 3
+    assert not any(sm.updated.values())
 
   def test_avg_frequency_checks(self):
     for poll in (True, False):
@@ -84,6 +86,7 @@ class TestSubMaster:
         "cameraOdometry": (20, 10),
         "liveCalibration": (4, 4),
         "carParams": (None, None),
+        "userFlag": (None, None),
       }
 
       for service, (max_freq, min_freq) in checks.items():

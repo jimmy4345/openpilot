@@ -9,11 +9,11 @@ import os
 import capnp
 import time
 
-from typing import Optional, List, Union, Dict, Deque
-from collections import deque
+from typing import Optional, List, Union, Dict
 
 from cereal import log
 from cereal.services import SERVICE_LIST
+from openpilot.common.util import MovingAverage
 
 NO_TRAVERSAL_LIMIT = 2**64-1
 
@@ -108,26 +108,30 @@ class FrequencyTracker:
 
     self.min_freq = min_freq * 0.8
     self.max_freq = max_freq * 1.2
-    self.recv_dts: Deque[float] = deque(maxlen=int(10 * freq))
+    self.avg_dt = MovingAverage(int(10 * freq))
+    self.recent_avg_dt = MovingAverage(int(freq))
     self.prev_time = 0.0
 
   def record_recv_time(self, cur_time: float) -> None:
     # TODO: Handle case where cur_time is less than prev_time
     if self.prev_time > 1e-5:
-      self.recv_dts.append(cur_time - self.prev_time)
+      dt = cur_time - self.prev_time
+
+      self.avg_dt.add_value(dt)
+      self.recent_avg_dt.add_value(dt)
+
     self.prev_time = cur_time
 
   @property
   def valid(self) -> bool:
-    if not self.recv_dts:
+    if self.avg_dt.count == 0:
       return False
 
-    avg_freq = len(self.recv_dts) / sum(self.recv_dts)
+    avg_freq = 1.0 / self.avg_dt.get_average()
     if self.min_freq <= avg_freq <= self.max_freq:
       return True
 
-    recent_dts = list(self.recv_dts)[-int(self.recv_dts.maxlen / 10):]
-    avg_freq_recent = len(recent_dts) / sum(recent_dts)
+    avg_freq_recent = 1.0 / self.recent_avg_dt.get_average()
     return self.min_freq <= avg_freq_recent <= self.max_freq
 
 
@@ -141,12 +145,16 @@ class SubMaster:
     self.updated = {s: False for s in services}
     self.recv_time = {s: 0. for s in services}
     self.recv_frame = {s: 0 for s in services}
-    self.alive = {s: False for s in services}
-    self.freq_ok = {s: False for s in services}
     self.sock = {}
     self.data = {}
-    self.valid = {}
-    self.logMonoTime = {}
+    self.logMonoTime = {s: 0 for s in services}
+
+    # zero-frequency / on-demand services are always alive and presumed valid; all others must pass checks
+    on_demand = {s: SERVICE_LIST[s].frequency <= 1e-5 for s in services}
+    self.static_freq_services = set(s for s in services if not on_demand[s])
+    self.alive = {s: on_demand[s] for s in services}
+    self.freq_ok = {s: on_demand[s] for s in services}
+    self.valid = {s: on_demand[s] for s in services}
 
     self.freq_tracker: Dict[str, FrequencyTracker] = {}
     self.poller = Poller()
@@ -173,8 +181,6 @@ class SubMaster:
         data = new_message(s, 0) # lists
 
       self.data[s] = getattr(data.as_reader(), s)
-      self.logMonoTime[s] = 0
-      self.valid[s] = False
       self.freq_tracker[s] = FrequencyTracker(SERVICE_LIST[s].frequency, self.update_freq, s == poll)
 
   def __getitem__(self, s: str) -> capnp.lib.capnp._DynamicStructReader:
@@ -211,14 +217,10 @@ class SubMaster:
       self.logMonoTime[s] = msg.logMonoTime
       self.valid[s] = msg.valid
 
-    for s in self.services:
-      if SERVICE_LIST[s].frequency > 1e-5 and not self.simulation:
-        # alive if delay is within 10x the expected frequency
-        self.alive[s] = (cur_time - self.recv_time[s]) < (10. / SERVICE_LIST[s].frequency)
-        self.freq_ok[s] = self.freq_tracker[s].valid
-      else:
-        self.freq_ok[s] = True
-        self.alive[s] = self.seen[s] if self.simulation else True
+    for s in self.static_freq_services:
+      # alive if delay is within 10x the expected frequency; checks relaxed in simulator
+      self.alive[s] = (cur_time - self.recv_time[s]) < (10. / SERVICE_LIST[s].frequency) or (self.seen[s] and self.simulation)
+      self.freq_ok[s] = self.freq_tracker[s].valid or self.simulation
 
   def all_alive(self, service_list: Optional[List[str]] = None) -> bool:
     return all(self.alive[s] for s in (service_list or self.services) if s not in self.ignore_alive)
